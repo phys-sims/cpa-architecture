@@ -33,5 +33,6 @@ Repo-local ADRs live in each repo’s `docs/adr/` folder. Private/internal ADRs 
 | ECO-0001 | _TBD_ | Draft | YYYY-MM-DD | phys-pipeline, abcdef-sim, glnse-sim |
 | ECO-0002 | _TBD_ | Draft | YYYY-MM-DD | _TBD_ |
 | ECO-0003 | _TBD_ | Draft | YYYY-MM-DD | _TBD_ |
+| ECO-0004 | Repository roles and boundaries in the CPA ecosystem. | Proposed | 2026-02-06 | phys-pipeline, abcdef-sim, abcdef-testbench, cpa-architecture |
 
 > Tip: keep each ADR focused on one decision. If it starts turning into a handbook, split it.
