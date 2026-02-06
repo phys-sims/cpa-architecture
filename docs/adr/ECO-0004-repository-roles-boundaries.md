@@ -1,118 +1,95 @@
-**Title:** Repository roles and boundaries in the CPA ecosystem.
+**Title:** Editable/source checkouts vs versioned packages
 
 - **ADR ID:** ECO-0004
 - **Status:** Proposed
-- **Date:** 2026-02-06
+- **Date:** 2025-02-19
 - **Deciders:** @cpa-architecture, @phys-sims-leads
 - **Area:** ecosystem
 - **Related:** TBD
-- **Tags:** api, data-model, testing, ops
+- **Tags:** packaging, ci, dependencies
 - **Scope:** ecosystem
 - **Visibility:** public
 - **Canonical ADR:** cpa-architecture/docs/adr/ECO-0004-repository-roles-boundaries.md
-- **Impacted repos:** phys-pipeline, abcdef-sim, abcdef-testbench, cpa-architecture
+- **Impacted repos:** phys-pipeline, abcdef-sim, abcdef-testbench
 - **Related ecosystem ADRs:** _None_
 
 ### Context
-- **Problem statement.** The CPA ecosystem now includes multiple repos that can blur responsibilities. We need an explicit set of boundaries so that pipeline contracts remain stable, simulation domain logic stays cohesive, and downstream testbench code does not become an unofficial API surface.
-- **In/Out of scope.** In scope: repository responsibilities, forbidden responsibilities, and how they align with pipeline contracts in `phys-pipeline` and simulation domain modules in `abcdef-sim`. Out of scope: detailed API versioning policy, release cadence, or staffing decisions.
-- **Constraints.** Maintain contract stability for the pipeline types (`PipelineStage`, `StageConfig`, `StageResult`, `State`) and keep domain assembly logic such as the `SystemAssembler` pipeline builder inside `abcdef-sim` while testbench remains a consumer-only repo.
+The CPA ecosystem uses both editable/source checkouts (e.g., workspace `deps/`)
+and versioned packages (published or tagged releases). We need a consistent rule
+for when each is appropriate, plus CI expectations, to avoid mismatched
+contracts across `phys-pipeline` and `abcdef-sim`, both of which are packaged via
+`pyproject.toml`.
 
 ### Options Considered
 
-**Option A — Explicit repo boundaries anchored to pipeline contracts (recommended)**
-- **Description:** Define responsibilities and explicit “must not” rules per repo, anchored on the `phys-pipeline` contract types and the `abcdef-sim` domain assembly modules.
-- **Impact areas:** public API contracts, simulation composition, documentation, and tests.
-- **Pros:** Clear ownership, less API drift, easier onboarding, and reduced cross-repo coupling.
-- **Cons:** Requires periodic enforcement and updates as new repos appear.
-- **Risks / Unknowns:** Potential friction when teams want to place quick fixes in downstream repos.
-- **Perf/Resource cost:** None.
-- **Operational complexity:** Moderate (needs review checklists).
-- **Security/Privacy/Compliance:** None.
-- **Dependencies / Externalities:** Requires aligning PR review expectations across repos.
+**Option A — Prefer editable/source checkouts for all workflows, including CI**
+- **Description:** Use editable installs everywhere, including CI and release
+  verification.
+- **Pros:** Fast iteration with zero packaging friction.
+- **Cons:** Hides packaging issues and diverges from downstream consumption.
 
-**Option B — Implicit boundaries via tribal knowledge**
-- **Description:** Keep boundaries in people’s heads and rely on review comments when issues appear.
-- **Impact areas:** API stability, documentation, testbench scope.
-- **Pros:** No documentation overhead.
-- **Cons:** Repeated confusion, increased coupling, and drift in responsibility.
-- **Risks / Unknowns:** High risk of breaking pipeline contracts and domain encapsulation.
-- **Perf/Resource cost:** None.
-- **Operational complexity:** High long-term complexity due to rework.
-- **Security/Privacy/Compliance:** None.
-- **Dependencies / Externalities:** None.
-
-**Option C — Centralize all responsibilities in a single repo**
-- **Description:** Move pipeline, simulation domain, and testbench into one repo.
-- **Impact areas:** repository structure, CI, and ownership.
-- **Pros:** Single location for changes.
-- **Cons:** Not aligned with current ecosystem structure; large migration cost.
-- **Risks / Unknowns:** High risk of slowed development velocity.
-- **Perf/Resource cost:** Significant migration effort.
-- **Operational complexity:** High.
-- **Security/Privacy/Compliance:** None.
-- **Dependencies / Externalities:** Requires major tooling changes.
+**Option B — Use editable/source checkouts for local development and coordinated cross-repo work, and use versioned packages for CI and releases (recommended)**
+- **Description:** Editable installs for local integration; versioned packages in
+  CI and releases.
+- **Pros:** Preserves fast local iteration while validating real dependency
+  boundaries in CI.
+- **Cons:** Requires CI job separation and explicit pinning discipline.
 
 ### Decision
-- **Chosen option:** Option A. Explicitly document repo roles with hard boundaries anchored to pipeline contracts and domain assembly responsibilities.
-- **Trade‑offs:** We accept some documentation maintenance in exchange for clarity and stability.
-- **Scope of adoption:** Applies to the entire CPA ecosystem. Exceptions must be documented in future ADRs.
+- **Chosen option:** Option B.
+- **Trade‑offs:** We accept additional CI setup in exchange for enforcing
+  packaging contracts.
+- **Scope of adoption:** Applies to all repos in the CPA ecosystem.
 
 ### Consequences
-- **Positive:** Stable pipeline contracts, clearer dependency direction, and reduced accidental API surface expansion.
-- **Negative / Mitigations:** Extra review overhead; mitigate with checklist-based reviews and ADR references.
-- **Migration plan:** No immediate code changes. Update repo documentation and reference this ADR in future PRs that touch boundaries.
-- **Test strategy:** Add repo-level checks in each impacted repo to ensure boundaries are respected when new modules are added.
-- **Monitoring & Telemetry:** Track cross-repo dependency PRs and ensure they cite this ADR when touching interfaces.
-- **Documentation:** Add references in repo READMEs and architecture docs as needed.
 
-### Repository Responsibilities and Forbidden Responsibilities
+#### Editable/source checkouts
+Use editable installs when:
+- You are changing an upstream API/contract and need downstream repo updates in
+  the same workspace.
+- You are debugging cross-repo integration issues.
+- You are working before a release exists.
 
-**phys-pipeline (pipeline contracts and execution)**
-- **Responsibilities:**
-  - Define pipeline contracts such as `PipelineStage`, `StageConfig`, `StageResult`, and `State` used by all simulation pipelines.
-  - Provide generic pipeline execution primitives (e.g., sequential or DAG orchestration) that remain domain-agnostic.
-- **Forbidden responsibilities:**
-  - Domain-specific simulation logic, optics assembly, or concrete stage configuration generation.
-  - Testbench scenarios or acceptance criteria.
+#### Versioned packages
+Use versioned packages when:
+- Running CI pipelines (unit, lint, type-checking, packaging checks).
+- Producing release artifacts or validating release candidates.
+- Testing against the same dependency resolution as downstream users.
 
-**abcdef-sim (domain modeling and pipeline assembly)**
-- **Responsibilities:**
-  - Implement simulation domain models, configs, and pipeline assembly layers such as the `SystemAssembler` that builds stage configurations and instantiates domain-specific stages.
-  - Own the mapping from domain inputs (presets/specs) to pipeline stages while consuming the `phys-pipeline` contracts.
-- **Forbidden responsibilities:**
-  - Redefining pipeline contracts or duplicating generic pipeline orchestration.
-  - Owning end-to-end testbench harnesses or golden-output acceptance suites.
+### CI Expectations
 
-**abcdef-testbench (validation and benchmarking)**
-- **Responsibilities:**
-  - Provide integration/acceptance tests, scenario coverage, and benchmarking against expected outputs.
-  - Validate that `abcdef-sim` implementations adhere to `phys-pipeline` contract expectations.
-- **Forbidden responsibilities:**
-  - Publishing new public APIs or pipeline contracts.
-  - Introducing new domain logic that bypasses `abcdef-sim` modules.
+**Editable/source checkouts**
+- CI must explicitly document the editable install step (e.g., `pip install -e
+  deps/phys-pipeline`) and should run downstream tests when API changes are in
+  flight.
+- CI should only use editable installs in integration jobs meant to validate
+  in-flight cross-repo changes.
 
-**cpa-architecture (ecosystem governance and documentation)**
-- **Responsibilities:**
-  - Own ecosystem-level ADRs, cross-repo policies, and boundary documentation.
-  - Capture decisions about repo responsibilities and dependency direction.
-- **Forbidden responsibilities:**
-  - Shipping runtime code, production configs, or simulation pipelines.
-  - Hosting testbench suites or pipeline contract implementations.
+**Versioned packages**
+- CI must install dependencies by version (e.g., from PyPI or internal indexes)
+  and ensure versions are pinned to released tags.
+- CI must fail if a repo relies on a local checkout without a corresponding
+  version pin.
 
-### Alternatives Considered (but not chosen)
-- Keep boundaries informal and rely on reviewer feedback (Option B).
-- Collapse repos into a single monorepo (Option C).
-
-### Open Questions
-- Should we encode these boundaries as automated repo checks (e.g., lint rules or dependency guards)?
-- Which repo should host a shared checklist for boundary reviews?
+### Packaging Guidance (current repos)
+- `phys-pipeline` and `abcdef-sim` are versioned via `pyproject.toml`. Version
+  bumps are the contract boundary for downstream consumers.
+- Downstream repos **must pin** these dependencies by version (or a compatible
+  range agreed by maintainers) in their `pyproject.toml` or requirements files.
+  Example guidance:
+  - `abcdef-sim` should pin `phys-pipeline` (e.g., `phys-pipeline==1.0.0` or an
+    explicitly approved range) when using packaged dependencies.
+  - `abcdef-testbench` should pin `abcdef-sim` and any direct dependencies on
+    `phys-pipeline` similarly.
+- If a repo needs editable installs for integration testing, it must still keep
+  version pins in the manifest and override only in the CI job that uses
+  editable installs.
 
 ### References
-- Pipeline contract definitions in `phys-pipeline` (`PipelineStage`, `StageConfig`, `StageResult`, `State`).
-- Domain pipeline assembly in `abcdef-sim` (`SystemAssembler` building stage configs and stages).
+- `deps/phys-pipeline/pyproject.toml`
+- `deps/abcdef-sim/pyproject.toml`
 
 ### Changelog
-- `2026-02-06` — Proposed by @cpa-architecture
+- `2025-02-19` — Proposed by @cpa-architecture
 
 ---
