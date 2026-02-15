@@ -1,105 +1,67 @@
-# AGENTS (meta workspace)
+# AGENTS.md (cpa-architecture)
 
-## Purpose
-This repo is a multi-repo workspace orchestrator for the phys-sims ecosystem.
+## Purpose of this repo
+`cpa-architecture` serves both as:
 
-It does NOT vendor or submodule other repositories. Instead, it uses:
-- `repos.toml` (manifest)
-- `tools/bootstrap.py` (workspace materialization)
+1. **Architecture documentation repo** (cross-repo ADRs and system docs), and
+2. **Workspace metarepo** for agent-driven multi-repo work.
 
-The actual working copies live in `deps/<repo>/`.
+Treat both as first-class responsibilities.
 
-## Repos in this workspace
-Materialized into `deps/`:
+## Repository layout
+- `docs/` – ecosystem-level ADRs and system documentation.
+- `manifest/repos.toml` – workspace manifest (repo list + refs).
+- `tools/bootstrap.py` – materializes/updates repo working copies in `deps/`.
+- `deps/` – generated dependency repos (gitignored; never commit).
 
-- `abcdef-testbench` (private likely)
-  - Depends on: `abcdef-sim`
-- `abcdef-sim`
-  - Depends on: `phys-pipeline`
-- `phys-pipeline`
-- `cpa-architecture`
-  - Cross-repo ADRs and system-level docs
-
-Dependency chain (direction of breakage risk):
-`abcdef-testbench → abcdef-sim → phys-pipeline`
-
-## Non-negotiable workspace rules
-- Never commit `deps/` (it is generated and gitignored).
-- Do not scan every repo by default. Only open files in the repo(s) relevant to the task.
-- If you change an upstream API/contract, you must check downstream usages.
+## Scope and change targeting
+- Update this repo when changing:
+  - cross-repo ADRs/system docs,
+  - workspace automation (`tools/bootstrap.py`),
+  - workspace manifest (`manifest/repos.toml`),
+  - agent/operator guidance.
+- Update repos inside `deps/<repo>/` for product code changes.
+- Do not scan every repo by default; only inspect repos relevant to the task.
 
 ## First action in any task
-1) Verify the workspace exists:
+1. Check whether workspace repos are present:
    - `ls deps/`
-2) If `deps/` is missing:
-   - Try: `python tools/bootstrap.py`
-   - If that fails due to network restrictions, report that the environment setup must run the bootstrap step.
+2. If missing, run:
+   - `python tools/bootstrap.py`
+3. If bootstrap fails due environment/setup issues (for example manifest mismatch or network limits), clearly report the blocker and continue with any work that can still be done safely in this repo.
 
-## Where to make changes
-Make changes inside the correct repo directory:
-- `deps/phys-pipeline/...`
-- `deps/abcdef-sim/...`
-- `deps/abcdef-testbench/...`
-- `deps/cpa-architecture/...`
+## Cross-repo safety protocol
+When changing an upstream API or shared contract:
+1. Identify downstream consumers.
+2. Search usages before edits (example):
+   - `rg "<Symbol>" deps/abcdef-sim`
+   - `rg "<Symbol>" deps/abcdef-testbench`
+3. Apply provider changes.
+4. Update downstream repos to preserve compatibility.
+5. Add/adjust tests to catch regressions.
 
-Avoid editing metarepo files unless you are:
-- updating `repos.toml`
-- updating `tools/bootstrap.py`
-- adding workspace-level documentation or checklists
+If unsure whether a change is breaking, assume it might be and verify.
 
-## Cross-repo change protocol (do this every time)
-When you suspect an API/contract change:
-
-1) Identify provider repo (upstream) and consumer repo(s) (downstream).
-2) Search downstream usages BEFORE editing:
-   - `rg "<SymbolName>" deps/abcdef-sim`
-   - `rg "<SymbolName>" deps/abcdef-testbench`
-3) Make upstream change.
-4) Update downstream repo(s) to restore compatibility.
-5) Add/adjust tests so the break would be caught next time.
-
-If uncertain whether a change is breaking, assume it is and verify downstream.
-
-## Running checks (minimum)
-Run checks in each repo you changed (commands may vary by repo; prefer repo-local AGENTS.md if present):
-
+## Validation expectations
+For each repo changed, run appropriate checks for that repo. Typical baseline:
 - `pre-commit run -a`
 - `pytest`
 - `ruff check .`
 - `mypy`
 
-If a repo has its own `AGENTS.md`, follow it over this file.
+If a nested `AGENTS.md` exists in a changed repo, follow the more specific instructions there.
 
-## Git workflow expectations
-- Create a branch in the repo you are modifying.
-  - If the change is in a dependency repo, branch inside `deps/<repo>`.
-  - If the change is in this meta repo (e.g., `repos.toml`, `tools/bootstrap.py`, or workspace docs), branch from the meta repo root.
-- Keep commits scoped and message clearly.
-- PR descriptions must include:
-  - what changed
-  - why it changed
-  - impacted repos
-  - exact test commands run
-- After committing, push the branch to the repo’s `origin` and open a PR (use the agent’s PR tool if available).
-  - For the meta repo, ensure `origin` is configured before pushing; if it is missing, note that a remote must be added to publish a PR.
-- Verify the branch exists on the remote before reporting completion (e.g., `git push -u origin <branch>`).
-- If multiple repos are modified, ensure each repo has its own branch/commit/PR; do not mix changes across repos.
+## Git and PR workflow
+- Keep changes scoped.
+- Commit in the repo you changed.
+- Open a PR with:
+  - what changed,
+  - why it changed,
+  - impacted repo(s),
+  - exact commands run for validation.
+- If publishing is required, verify branch push to `origin`.
 
-## Token/context efficiency
-- Use `rg`/`git grep` to narrow scope before opening lots of files.
-- Avoid reading generated files, lockfiles, or large artifacts unless needed.
-
-## Network expectations
-Assume agent-phase network is unavailable.
-Do not attempt to fetch remote content during agent work.
-If additional repositories are needed, the environment setup must be updated to bootstrap them.
-
-## Enabling authenticated pushes from agents
-The bootstrap script can configure per-repo push URLs using a token from the
-following environment variables (first match wins):
-`BOOTSTRAP_GIT_TOKEN`, `GIT_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, `GH_TOKEN_2`.
-To enable this behavior, ensure the token is present and (optionally) set
-`BOOTSTRAP_CONFIGURE_PUSH_URL=1` (default). This updates each repo's
-`origin` push URL so `git push` works from inside `deps/<repo>`.
-If you do not want bootstrap to rewrite push URLs, set
-`BOOTSTRAP_CONFIGURE_PUSH_URL=0`.
+## Efficiency guidelines
+- Prefer `rg`/`git grep` over broad scans.
+- Avoid generated artifacts unless needed.
+- Never commit `deps/` content from this metarepo.
