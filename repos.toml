@@ -30,3 +30,8 @@ ref  = "main"
 name = "phys-sims-utils"
 url  = "https://github.com/phys-sims/phys-sims-utils.git"
 ref  = "main"
+
+[[repo]]
+name = "glnse-sim"
+url  = "https://github.com/phys-sims/glnse-sim.git"
+ref  = "main"
