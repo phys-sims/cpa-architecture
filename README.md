@@ -1,86 +1,52 @@
 # cpa-architecture
 
-This repo contains **cross-repository architecture decisions (ADRs)** and system-level documentation for the **CPA ecosystem** in the `phys-sims` org.
+`cpa-architecture` now has **two roles**:
 
-If you're looking for *how a specific repo works internally*, you probably want that repo’s `docs/adr/` instead.
+1. **Architecture repo** for ecosystem-level ADRs and system documentation.
+2. **Agent-friendly workspace metarepo** used to materialize working copies of related repos under `deps/`.
 
----
+## What this repository is for
 
-## What belongs here
+### 1) Cross-repo architecture decisions
+Use this repo for decisions that affect multiple repositories (contracts, repo boundaries, conventions, compatibility expectations).
 
-This repo is the **single source of truth** for decisions that affect **two or more** of:
+Primary docs location:
 
-- `phys-pipeline`
-- `abcdef-sim`
-- eventual `glnse-sim` repo
-- eventual `cpa-sim` repo
-- public-facing conventions that downstream sims or users must follow
+- `docs/adr/` for ecosystem ADRs (`ECO-####-*.md`)
+- `docs/SYSTEM_OVERVIEW.md` for a high-level map
 
-Typical topics:
+### 2) Workspace orchestration
+Use this repo to bootstrap local working copies of the ecosystem repos for cross-repo work.
 
-- Cross-repo contracts (stage/result/config/state expectations)
-- Repo role boundaries and ownership (what belongs where)
-- Ecosystem dependency/versioning policy (dev-from-source vs published packages)
-- Integration testing policy across repos
-- Org-wide conventions that directly impact interoperability:
-  - caching + cache key stability expectations
-  - artifacts/provenance conventions
-  - units/numerical conventions
-  - interface contracts between sims (e.g., abcdef ↔ glnse)
+Workspace files:
 
----
+- `manifest/repos.toml` – source-of-truth list of repos and refs
+- `tools/bootstrap.py` – clones/updates repos into `deps/<repo>/`
+- `deps/` – generated working copies (gitignored)
 
-## What does NOT belong here
+## Quick start (metarepo usage)
 
-### Repo-local decisions
-Each repo remains understandable in isolation. Repo-specific architecture belongs in that repo’s ADRs:
+```bash
+python tools/bootstrap.py
+```
 
-- `<repo>/docs/adr/` (local ADRs)
-- `<repo>/docs/how-to-*.md` (repo docs)
+Then work inside a dependency repo, for example:
 
-If a repo-local ADR depends on an ecosystem ADR, it should **link to it** rather than duplicating it.
+- `deps/phys-pipeline/`
+- `deps/abcdef-sim/`
+- `deps/abcdef-testbench/`
+- `deps/cpa-sim/`
+- `deps/cpa-testbench/`
+- `deps/phys-sims-utils/`
 
-### Internal / private decisions
-Private implementation details, benchmarks, datasets, and internal ML/testing framework decisions belong in private repos (e.g., `cpa-workspace` and its private testbenches / `research-utils`).
+## What does not belong here
 
-This repo should not contain sensitive/private testbench details.
-
----
-
-## Structure
-
-- `docs/adr/`
-  - `ECO-####-*.md` — ecosystem ADRs (cross-repo)
-  - `_template-*.md` — ADR templates (if used here)
-  - `index.md` — generated/maintained list of ecosystem ADRs
-
-- `SYSTEM_OVERVIEW.md` *(optional)*
-  - High-level map of how repos fit together (not a substitute for ADRs)
-
----
-
-## How to decide where an ADR goes
-
-Ask:
-
-> “If this repo disappeared tomorrow, would this decision still matter?”
-
-- **Yes** → it belongs here (ecosystem ADR)
-- **No** → it belongs in the relevant repo’s `docs/adr/`
-- **It’s sensitive/internal** → it belongs in a private repo (e.g., `cpa-workspace`)
-
----
-
-## Linking policy
-
-- Ecosystem ADRs should list **Impacted repos** and **Related ADRs**.
-- Repo-local ADRs that rely on ecosystem decisions should link back to the relevant `ECO-####` ADR(s).
-
----
+- Repo-local ADRs that only matter to one codebase (put those in that repo’s docs).
+- Private implementation details, datasets, or internal-only testbench content.
+- Direct commits to `deps/` (generated workspace state).
 
 ## Contributing
 
-1. Create a new ADR in `docs/adr/` using the template.
-2. Use the next available `ECO-####` number.
-3. Add it to `docs/adr/index.md` (or run the index script if provided).
-4. Keep the ADR focused on a single decision and its consequences across repos.
+- For architecture work: add/update ADRs in `docs/adr/` and keep `docs/adr/index.md` current.
+- For metarepo work: update `manifest/repos.toml`, `tools/bootstrap.py`, and/or workspace-level docs.
+- Follow `AGENTS.md` for agent workflow, validation, and PR expectations.
