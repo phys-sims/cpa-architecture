@@ -18,10 +18,15 @@ ref  = "main"
 
 [[repo]]
 name = "cpa-sim"
-url  = "https://github.com/phys-sims/phys-pipeline.git"
+url  = "https://github.com/phys-sims/cpa-sim.git"
 ref  = "main"
 
 [[repo]]
 name = "cpa-testbench"
-url  = "https://github.com/phys-sims/phys-pipeline.git"
+url  = "https://github.com/phys-sims/cpa-testbench.git"
+ref  = "main"
+
+[[repo]]
+name = "phys-sims-utils"
+url  = "https://github.com/phys-sims/phys-sims-utils.git"
 ref  = "main"
