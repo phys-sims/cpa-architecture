@@ -1,6 +1,6 @@
 # cpa-architecture
 
-`cpa-architecture` now has **two roles**:
+`cpa-architecture` has **two roles**:
 
 1. **Architecture repo** for ecosystem-level ADRs and system documentation.
 2. **Agent-friendly workspace metarepo** used to materialize working copies of related repos under `deps/`.
