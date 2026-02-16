@@ -62,6 +62,7 @@ This writes `patches/<bundle>/` containing:
    - `github_org` = owner org
    - `base_branch` = PR base branch
 5. The workflow uses `REPO_OPS_GH_TOKEN` to clone target repos, apply patches, commit, push branches, and open PRs.
+6. If a change entry includes `base_sha`, `tools/repo_ops.py` verifies that commit exists in the clone and explicitly checks out the publication branch at that exact commit (`git checkout -B <branch> <base_sha>`) before applying the patch. If the SHA is missing, publication fails fast with remediation guidance.
 
 Dry run validation (no push/PR):
 

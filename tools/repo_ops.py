@@ -70,8 +70,40 @@ def clone_repo(work_dir: Path, repo_url: str, branch: str, token: str) -> Path:
 
     run(["git", "clone", repo_url, str(dest)])
     run(["git", "checkout", "-B", branch], cwd=dest)
-    run(["git", "remote", "set-url", "origin", repo_url.replace("https://", f"https://x-access-token:{token}@")], cwd=dest)
+    run(
+        ["git", "remote", "set-url", "origin", repo_url.replace("https://", f"https://x-access-token:{token}@")],
+        cwd=dest,
+    )
     return dest
+
+
+def checkout_base(repo_dir: Path, branch: str, base_sha: str) -> None:
+    expected_exists = (
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{base_sha}^{{commit}}"],
+            cwd=str(repo_dir),
+            text=True,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+    if not expected_exists:
+        head = run(["git", "rev-parse", "HEAD"], cwd=repo_dir)
+        current_branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
+        raise RuntimeError(
+            "Base SHA mismatch detected.\n"
+            f"Repository: {repo_dir.name}\n"
+            f"Expected SHA: {base_sha}\n"
+            f"Current SHA: {head}\n"
+            f"Current branch: {current_branch}\n"
+            "Merge-base relationship: expected SHA not found in local clone\n"
+            "Suggested next steps:\n"
+            "  1. Regenerate the bundle: python tools/mkpatch.py\n"
+            "  2. Rerun the workflow with an updated plan_path."
+        )
+
+    run(["git", "checkout", "-B", branch, base_sha], cwd=repo_dir)
 
 
 def apply_patch(repo_dir: Path, patch_path: Path) -> None:
@@ -200,12 +232,18 @@ def main() -> int:
         print(f"--- {change.repo} ---")
         if args.dry_run:
             print(f"DRY RUN: would clone {repo_url}")
+            if change.base_sha:
+                print(f"DRY RUN: would checkout {change.branch} at {change.base_sha}")
+            else:
+                print("DRY RUN: no base_sha provided; would keep cloned branch tip")
             print(f"DRY RUN: would apply patch {patch_path}")
             print(f"DRY RUN: would commit '{change.commit_message}' on {change.branch}")
             print(f"DRY RUN: would open PR to {args.base_branch}")
             continue
 
         repo_dir = clone_repo(work_dir, repo_url, change.branch, token)
+        if change.base_sha:
+            checkout_base(repo_dir, change.branch, change.base_sha)
         assert_base_sha(repo_dir, change.base_sha)
         apply_patch(repo_dir, patch_path)
 
