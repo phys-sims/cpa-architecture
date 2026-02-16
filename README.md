@@ -39,6 +39,36 @@ Then work inside a dependency repo, for example:
 - `deps/cpa-testbench/`
 - `deps/phys-sims-utils/`
 
+
+## Cross-repo publication from Codex Cloud
+
+When Codex Cloud cannot push branches from `deps/*`, use the patch-bundle + repo-ops workflow:
+
+1. Make changes in `deps/<repo>/` locally in the Codex run.
+2. Generate a bundle with machine-readable plan:
+
+```bash
+python tools/mkpatch.py
+```
+
+This writes `patches/<bundle>/` containing:
+- `<repo>.patch` files
+- `change_report.md`
+- `change_plan.json` (repo, branch, commit message, patch path, base SHA)
+
+3. Commit the bundle to `cpa-architecture`.
+4. Run GitHub Action **Repo Ops Publish** (`.github/workflows/repo-ops-publish.yml`) with:
+   - `plan_path` = path to `change_plan.json`
+   - `github_org` = owner org
+   - `base_branch` = PR base branch
+5. The workflow uses `REPO_OPS_GH_TOKEN` to clone target repos, apply patches, commit, push branches, and open PRs.
+
+Dry run validation (no push/PR):
+
+```bash
+python tools/repo_ops.py --workspace-root . --plan patches/<bundle>/change_plan.json --org phys-sims --dry-run
+```
+
 ## What does not belong here
 
 - Repo-local ADRs that only matter to one codebase (put those in that repo’s docs).

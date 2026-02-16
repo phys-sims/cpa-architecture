@@ -1,0 +1,58 @@
+name: Repo Ops Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan_path:
+        description: Path to change_plan.json within this repo
+        required: true
+        default: patches/bundle-example/change_plan.json
+      github_org:
+        description: GitHub org that owns target repos
+        required: true
+        default: phys-sims
+      base_branch:
+        description: Base branch for PRs
+        required: true
+        default: main
+      dry_run:
+        description: Skip git push and PR creation
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.REPO_OPS_GH_TOKEN }}
+    steps:
+      - name: Checkout metarepo
+        uses: actions/checkout@v4
+
+      - name: Validate token
+        if: ${{ !inputs.dry_run }}
+        run: |
+          test -n "$GH_TOKEN" || {
+            echo "REPO_OPS_GH_TOKEN secret is required unless dry_run=true" >&2
+            exit 1
+          }
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "repo-ops-bot"
+          git config --global user.email "repo-ops-bot@users.noreply.github.com"
+
+      - name: Run repo ops publisher
+        run: |
+          python tools/repo_ops.py \
+            --workspace-root "${GITHUB_WORKSPACE}" \
+            --plan "${{ inputs.plan_path }}" \
+            --org "${{ inputs.github_org }}" \
+            --base-branch "${{ inputs.base_branch }}" \
+            ${{ inputs.dry_run && '--dry-run' || '' }}

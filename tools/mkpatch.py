@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,15 @@ class DirtyRepo:
     base_sha: str
     summary: str
     patch_text: str
+
+
+def suggested_branch(bundle_name: str, repo_name: str) -> str:
+    safe_repo = repo_name.replace("_", "-")
+    return f"codex/{bundle_name}/{safe_repo}"
+
+
+def suggested_commit_message(bundle_name: str, repo_name: str) -> str:
+    return f"Apply {bundle_name} updates for {repo_name}"
 
 
 def run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -93,6 +103,22 @@ def write_bundle(repos: list[DirtyRepo], patches_dir: Path, bundle_name: str) ->
     for repo in repos:
         patch_path = bundle_dir / f"{repo.name}.patch"
         patch_path.write_text(repo.patch_text, encoding="utf-8")
+
+    plan = {
+        "schema_version": 1,
+        "bundle": bundle_name,
+        "changes": [
+            {
+                "repo": repo.name,
+                "branch": suggested_branch(bundle_name, repo.name),
+                "commit_message": suggested_commit_message(bundle_name, repo.name),
+                "patch_path": f"patches/{bundle_name}/{repo.name}.patch",
+                "base_sha": repo.base_sha,
+            }
+            for repo in repos
+        ],
+    }
+    (bundle_dir / "change_plan.json").write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
 
     write_change_report(bundle_dir, repos)
     return bundle_dir
