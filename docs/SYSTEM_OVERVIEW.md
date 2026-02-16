@@ -56,6 +56,7 @@ All stages and results conform to the **phys-pipeline** stage/result/config conv
 ### What lives in each repo
 - Repo-local ADRs (implementation choices, internal architecture):  
   `<repo>/docs/adr/`
+  - For ECO-derived local ADRs, use `docs/adr/deps-adr-authoring-guide.md` in this metarepo for naming and content expectations.
 
 - Repo-local documentation (how to use that repo):  
   `<repo>/README.md`, `<repo>/docs/*`
