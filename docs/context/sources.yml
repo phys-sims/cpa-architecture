@@ -1,0 +1,17 @@
+sources:
+  - repo: phys-sims/phys-pipeline
+    ref: main
+    paths:
+      - README.md
+  - repo: phys-sims/abcdef-sim
+    ref: main
+    paths:
+      - README.md
+  - repo: phys-sims/phys-sims-utils
+    ref: main
+    paths:
+      - README.md
+  - repo: phys-sims/cpa-testbench
+    ref: main
+    paths:
+      - README.md

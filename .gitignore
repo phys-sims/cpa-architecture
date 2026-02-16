@@ -1,5 +1,5 @@
 # Workspace artifacts
-deps/
+/deps/
 patches/
 manifest/refs.lock
 
