@@ -1,0 +1,30 @@
+name: Sync dependency context snapshots
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Sync context snapshots
+        run: python tools/sync_context.py
+
+      - name: Commit snapshot updates
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(context): sync upstream snapshots"
+          file_pattern: docs/context/snapshots/**
