@@ -18,6 +18,7 @@ Treat both as first-class responsibilities.
 - `tools/repo_ops.py` – applies patch plans and publishes branches/PRs to target repos.
 - `deps/` – generated dependency repos (gitignored; never commit).
 - `patches/` – patch bundles for cross-repo publication.
+- Retention policy: keep only the newest 3 `patches/bundle-*` directories (enforced by CI via `python tools/check_patch_retention.py --max-bundles 3`).
 
 ---
 
@@ -132,8 +133,9 @@ Agents must run these checks conceptually (and command-line checks where possibl
 
 1. If files were changed in `deps/*`, ensure `patches/<bundle>/` exists.
 2. If `patches/<bundle>/` does not exist, run `python tools/mkpatch.py --prune-old --keep 3`.
-3. Ensure metarepo `git status` includes only intended tracked artifacts (no `deps/` files staged).
-4. Ensure final output includes:
+3. If `patches/` changed, enforce bundle retention with `python tools/check_patch_retention.py --max-bundles 3` and remove stale bundles reported by the check.
+4. Ensure metarepo `git status` includes only intended tracked artifacts (no `deps/` files staged).
+5. Ensure final output includes:
    - impacted `deps/<repo>` names,
    - bundle path,
    - metarepo commit SHA,
