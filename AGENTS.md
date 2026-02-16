@@ -12,12 +12,15 @@ Treat both as first-class responsibilities.
 - `docs/` – ecosystem-level ADRs and system documentation.
 - `manifest/repos.toml` – workspace manifest (repo list + refs).
 - `tools/bootstrap.py` – materializes/updates repo working copies in `deps/`.
+- `tools/mkpatch.py` – creates patch bundles from dirty `deps/*` repos.
+- `tools/repo_ops.py` – applies patch plans and publishes branches/PRs to target repos.
 - `deps/` – generated dependency repos (gitignored; never commit).
+- `patches/` – patch bundles for cross-repo publication.
 
 ## Scope and change targeting
 - Update this repo when changing:
   - cross-repo ADRs/system docs,
-  - workspace automation (`tools/bootstrap.py`),
+  - workspace automation (`tools/bootstrap.py`, `tools/mkpatch.py`, `tools/repo_ops.py`),
   - workspace manifest (`manifest/repos.toml`),
   - agent/operator guidance.
 - Update repos inside `deps/<repo>/` for product code changes.
@@ -41,6 +44,31 @@ When changing an upstream API or shared contract:
 5. Add/adjust tests to catch regressions.
 
 If unsure whether a change is breaking, assume it might be and verify.
+
+## Codex Cloud publication runbook (repo-ops publisher)
+Use this when Codex Cloud cannot push directly from `deps/*` repos.
+
+1. Make and validate code changes in target repos under `deps/<repo>/`.
+2. Build a patch bundle from dirty repos:
+   - `python tools/mkpatch.py`
+3. Review generated artifacts in `patches/<bundle>/`:
+   - `<repo>.patch`
+   - `change_plan.json`
+   - `change_report.md`
+4. Optionally validate publication logic locally:
+   - `python tools/repo_ops.py --workspace-root . --plan patches/<bundle>/change_plan.json --org <github-org> --dry-run`
+5. Commit the bundle in this metarepo (never commit `deps/`).
+6. Run GitHub Action **Repo Ops Publish** (`.github/workflows/repo-ops-publish.yml`) with:
+   - `plan_path`: `patches/<bundle>/change_plan.json`
+   - `github_org`: org owning destination repos
+   - `base_branch`: PR base branch (usually `main`)
+   - `dry_run`: `false` for real publication
+
+### Repo-ops prerequisites and guardrails
+- Non-dry-run requires `REPO_OPS_GH_TOKEN` configured in Actions secrets.
+- `tools/repo_ops.py` checks `base_sha` from `change_plan.json`; publication fails on mismatch.
+- If a patch applies with no file changes, repo-ops skips push/PR for that repo.
+- Ensure branch and commit message values in `change_plan.json` are acceptable before publishing.
 
 ## Validation expectations
 For each repo changed, run appropriate checks for that repo. Typical baseline:
