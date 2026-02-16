@@ -49,7 +49,7 @@ For product code changes, agents may edit inside `deps/<repo>/`, but **must use 
 ### Non-optional sequence when `deps/*` changes exist
 1. Make and validate changes in `deps/<repo>/`.
 2. Generate a patch bundle from dirty repos:
-   - `python tools/mkpatch.py`
+   - `python tools/mkpatch.py --prune-old --keep 3`
 3. Verify generated artifacts in `patches/<bundle>/`:
    - `<repo>.patch`
    - `change_plan.json`
@@ -60,7 +60,7 @@ For product code changes, agents may edit inside `deps/<repo>/`, but **must use 
 ### Prohibited behaviors
 - Do **not** treat direct push from `deps/*` as the default delivery path.
 - Do **not** end with only dirty `deps/*` and no metarepo artifacts.
-- Do **not** claim completion if `python tools/mkpatch.py` was required but not run.
+- Do **not** claim completion if `python tools/mkpatch.py --prune-old --keep 3` was required but not run.
 - Do **not** commit `deps/` contents in this metarepo.
 
 ### Definition of done for cross-repo/product changes
@@ -93,7 +93,7 @@ Use this when Codex Cloud cannot push directly from `deps/*` repos.
 
 1. Make and validate code changes in target repos under `deps/<repo>/`.
 2. Build a patch bundle from dirty repos:
-   - `python tools/mkpatch.py`
+   - `python tools/mkpatch.py --prune-old --keep 3`
 3. Review generated artifacts in `patches/<bundle>/`:
    - `<repo>.patch`
    - `change_plan.json`
@@ -131,7 +131,7 @@ When publication is required, agents must execute (not just describe) the CLI co
 Agents must run these checks conceptually (and command-line checks where possible) before finishing:
 
 1. If files were changed in `deps/*`, ensure `patches/<bundle>/` exists.
-2. If `patches/<bundle>/` does not exist, run `python tools/mkpatch.py`.
+2. If `patches/<bundle>/` does not exist, run `python tools/mkpatch.py --prune-old --keep 3`.
 3. Ensure metarepo `git status` includes only intended tracked artifacts (no `deps/` files staged).
 4. Ensure final output includes:
    - impacted `deps/<repo>` names,
@@ -157,6 +157,7 @@ If a nested `AGENTS.md` exists in a changed repo, follow the more specific instr
 
 ## Git and PR workflow
 - Keep changes scoped.
+- Run `python tools/mkpatch.py --prune-old --keep 3` before committing metarepo bundle artifacts.
 - Commit in the repo you changed.
 - Open a PR with:
   - what changed,
