@@ -48,7 +48,7 @@ When Codex Cloud cannot push branches from `deps/*`, use the patch-bundle + repo
 2. Generate a bundle with machine-readable plan:
 
 ```bash
-python tools/mkpatch.py
+python tools/mkpatch.py --prune-old --keep 3
 ```
 
 This writes `patches/<bundle>/` containing:

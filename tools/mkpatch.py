@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -129,10 +130,41 @@ def make_bundle_name(now: dt.datetime | None = None) -> str:
     return instant.strftime("bundle-%Y%m%d-%H%M%S")
 
 
+def sorted_bundle_dirs(patches_dir: Path) -> list[Path]:
+    if not patches_dir.exists():
+        return []
+
+    bundle_dirs = [path for path in patches_dir.glob("bundle-*") if path.is_dir()]
+    return sorted(bundle_dirs, key=lambda path: (path.stat().st_mtime, path.name), reverse=True)
+
+
+def prune_old_bundles(patches_dir: Path, keep: int) -> list[Path]:
+    if keep < 0:
+        raise ValueError("--keep must be zero or greater")
+
+    bundle_dirs = sorted_bundle_dirs(patches_dir)
+    stale_bundles = bundle_dirs[keep:]
+    for stale_bundle in stale_bundles:
+        shutil.rmtree(stale_bundle)
+
+    return stale_bundles
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create patch bundles from dirty deps repos.")
     parser.add_argument("--bundle", help="Override bundle directory name.")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="Workspace root containing deps/.")
+    parser.add_argument(
+        "--prune-old",
+        action="store_true",
+        help="Delete stale patches/bundle-* directories before writing a new bundle.",
+    )
+    parser.add_argument(
+        "--keep",
+        type=int,
+        default=3,
+        help="Number of newest bundle-* directories to retain when --prune-old is used.",
+    )
     args = parser.parse_args()
 
     deps_dir = args.root / "deps"
@@ -142,6 +174,15 @@ def main() -> int:
     if not dirty_repos:
         print("No dirty repos detected under deps/.")
         return 0
+
+    if args.prune_old:
+        deleted = prune_old_bundles(patches_dir, args.keep)
+        if deleted:
+            print("Deleted stale bundles:")
+            for bundle_path in deleted:
+                print(f"- {bundle_path}")
+        else:
+            print("Deleted stale bundles: none")
 
     bundle_name = args.bundle or make_bundle_name()
     bundle_dir = write_bundle(dirty_repos, patches_dir, bundle_name)
