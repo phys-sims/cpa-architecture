@@ -64,6 +64,18 @@ Use this when Codex Cloud cannot push directly from `deps/*` repos.
    - `base_branch`: PR base branch (usually `main`)
    - `dry_run`: `false` for real publication
 
+### Trigger from CLI
+When publication is required, agents must execute (not just describe) the CLI commands below.
+
+1. Authenticate and verify:
+   - `gh auth status`
+2. Trigger workflow:
+   - `gh workflow run repo-ops-publish.yml --ref <metarepo-branch> -f plan_path=patches/<bundle>/change_plan.json -f github_org=<org> -f base_branch=main -f dry_run=false`
+3. Watch run:
+   - `gh run watch --exit-status`
+4. Inspect result/logs:
+   - `gh run view --log`
+
 ### Repo-ops prerequisites and guardrails
 - Non-dry-run requires `REPO_OPS_GH_TOKEN` configured in Actions secrets.
 - `tools/repo_ops.py` checks `base_sha` from `change_plan.json`; publication fails on mismatch.
