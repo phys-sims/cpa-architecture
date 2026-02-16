@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "bundle": "bundle-20260216-211009",
+  "changes": [
+    {
+      "repo": "cpa-sim",
+      "branch": "codex/bundle-20260216-211009/cpa-sim",
+      "commit_message": "Apply bundle-20260216-211009 updates for cpa-sim",
+      "patch_path": "patches/bundle-20260216-211009/cpa-sim.patch",
+      "base_sha": "c394a3554e187b0515f31c431d8198625e434553"
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+diff --git a/STATUS.md b/STATUS.md
+index ca5a7bc..8c45d61 100644
+--- a/STATUS.md
++++ b/STATUS.md
+@@ -3,9 +3,9 @@
+ > **Source of truth:** Update this file whenever behavior, tests, schemas, or canonical examples change.
+ 
+ ## Last updated
+-- Date: 2026-02-15
++- Date: 2026-02-16
+ - By: @openai-codex
+-- Scope: Adapted STATUS.md template for cpa-sim (initial tracking scaffold).
++- Scope: Added ADR set aligned to ecosystem ADR context and cpa-sim stage ownership.
+ 
+ ---
+ 
+@@ -73,11 +73,11 @@ Fill these in after first green run; keep them current.
+ - [ ] Physics golden tests (free-space + fiber)
+ 
+ ### Docs / ADRs
+-- [ ] ADR-0001 conventions (units, FFT, sign)
+-- [ ] ADR-0002 stage + state model
+-- [ ] ADR-0003 solver choice (v1) + replacement triggers
+-- [ ] ADR-0004 free-space model scope/limits
+-- [ ] ADR-0005 validation tiers + tolerances
++- [x] ADR-0001 conventions (units, FFT, sign)
++- [x] ADR-0002 canonical result schema contract
++- [x] ADR-0003 validation tiers + CI policy
++- [x] ADR-0004 stage/domain boundaries (laser, free-space, fiber, amp)
++- [ ] ADR-0005 backend selection policy (solver choice + replacement triggers)
+ 
+ ### Release readiness
+ - [ ] README quickstart + one runnable config
+@@ -94,6 +94,5 @@ Fill these in after first green run; keep them current.
+ 
+ ## Next actions
+ - [ ] Run initial CI commands locally and populate the CI health checklist rows.
+-- [ ] Decide and document conventions in ADR-0001 (units/FFT/sign).
+ - [ ] Add minimal canonical configs under `configs/examples/`.
+ - [ ] Land first end-to-end smoke test and record runtimes here.
+diff --git a/docs/adr/ADR-0001-conventions-units.md b/docs/adr/ADR-0001-conventions-units.md
+new file mode 100644
+index 0000000..edf83a0
+--- /dev/null
++++ b/docs/adr/ADR-0001-conventions-units.md
+@@ -0,0 +1,37 @@
++**Title:** cpa-sim conventions and units contract for CPA state and stage interfaces.
++
++- **ADR ID:** ADR-0001
++- **Status:** Proposed
++- **Date:** 2026-02-16
++- **Deciders:** @cpa-sim maintainers
++- **Area:** simulation-core
++- **Related ecosystem ADRs:** ECO-0001, ECO-0002
++- **Tags:** api, data-model, physics, testing
++- **Scope:** cpa-sim
++
++### Context
++`cpa-sim` is the implementation authority for CPA simulation stages spanning laser specification initialization, free-space propagation, fiber propagation, and amplification. To keep these stage boundaries numerically consistent and deterministic, we need one explicit convention set for units, FFT scaling, chirp/dispersion signs, and metric naming that matches ecosystem contracts.
++
++### Decision
++Adopt the ECO-0001 convention set for all internal `cpa-sim` calculations and external contract surfaces:
++
++1. **Internal units:** `fs`, `um`, `rad`; angular frequency in `rad/fs`; speed of light `c = 0.299792458 um/fs`.
++2. **Boundary declaration:** outputs and config-normalized artifacts declare `unit_system: "fs_um_rad"`.
++3. **Metric naming:** dimensional metric keys use explicit suffixes (`_fs`, `_um`, `_rad_per_fs`, `_j`, `_w`).
++4. **Envelope normalization:** the complex envelope is represented in `sqrt(W)` so `|E|^2` is power in `W`; energy integrates as `sum(|E|^2 * dt_fs * 1e-15)`.
++5. **FFT/scaling:** use NumPy FFT sign convention with explicit time-step scaling (`Ew = dt_s * FFT(Et)`, `Et = (1/dt_s) * IFFT(Ew)`).
++6. **Sign conventions:** positive chirp means `dω_inst/dt > 0`; GDD sign follows `d²φ/dω²`; free-space grating equation signs are documented and tested per backend.
++
++### Consequences
++- **Positive:** laser, free-space, fiber, and amp stages can share one stable state contract without hidden conversions.
++- **Negative:** all new metrics and adapters must comply with suffix/unit rules.
++- **Implementation follow-up:** add invariant tests for phase-only energy preservation and sign-convention fixtures for free-space/fiber.
++
++### Validation
++- Unit tests for unit suffix policies and envelope-energy invariants.
++- Integration tests across stretcher → fiber → amp → compressor with deterministic seeds.
++- Physics tests that pin free-space and fiber sign-sensitive metrics.
++
++### References
++- `cpa-architecture/docs/adr/ECO-0001-conventions-units.md`
++- `cpa-architecture/docs/adr/ECO-0002-result-schema-contract.md`
+diff --git a/docs/adr/ADR-0002-result-schema-contract.md b/docs/adr/ADR-0002-result-schema-contract.md
+new file mode 100644
+index 0000000..924e0f1
+--- /dev/null
++++ b/docs/adr/ADR-0002-result-schema-contract.md
+@@ -0,0 +1,50 @@
++**Title:** Canonical `result.json` schema contract for cpa-sim runs.
++
++- **ADR ID:** ADR-0002
++- **Status:** Proposed
++- **Date:** 2026-02-16
++- **Deciders:** @cpa-sim maintainers
++- **Area:** io-contract
++- **Related ecosystem ADRs:** ECO-0001, ECO-0002
++- **Tags:** api, schema, provenance, testing
++- **Scope:** cpa-sim
++
++### Context
++`cpa-sim` produces outputs consumed by harnesses and testbench workflows. The simulator must emit one predictable result shape regardless of specific stage/backend combinations (laser init, free-space, fiber, amp) so downstream tooling does not require per-backend parsing logic.
++
++### Decision
++Adopt the ECO-0002 canonical result surface for `cpa-sim`, with `schema_version: "cpa.result.v0.1"` and required top-level keys:
++
++- `schema_version`
++- `status` (`ok` or `failed`)
++- `unit_system`
++- `run_id`
++- `timestamp_utc`
++- `config_hash`
++- `provenance`
++- `summary`
++- `metrics`
++- `artifacts`
++- `stages`
++- `error` (required when `status=failed`)
++
++### Artifact and stage policy
++- Large arrays (fields, spectra, temporal traces) are written as file artifacts and referenced by path.
++- `metrics` remains scalar-only for dashboards and optimization loops.
++- Stage records must include stage identity, stage config hash, scalar metrics, and artifact references.
++
++### Failure semantics
++Failed runs must still emit schema-valid `result.json` with actionable `error` metadata and any available partial stage outputs.
++
++### Consequences
++- **Positive:** deterministic ingestion for CI, sweeps, and cross-repo tooling.
++- **Negative:** schema evolution requires explicit governance and compatibility tests.
++- **Implementation follow-up:** add a pydantic/json-schema model and fixture-based compatibility tests.
++
++### Validation
++- Schema model tests for required keys/types.
++- Success and failure fixture validation tests.
++- Adapter ingestion tests that consume only canonical keys.
++
++### References
++- `cpa-architecture/docs/adr/ECO-0002-result-schema-contract.md`
+diff --git a/docs/adr/ADR-0003-validation-tiers-ci-policy.md b/docs/adr/ADR-0003-validation-tiers-ci-policy.md
+new file mode 100644
+index 0000000..ca0af40
+--- /dev/null
++++ b/docs/adr/ADR-0003-validation-tiers-ci-policy.md
+@@ -0,0 +1,42 @@
++**Title:** Validation tiers and CI marker policy for cpa-sim.
++
++- **ADR ID:** ADR-0003
++- **Status:** Proposed
++- **Date:** 2026-02-16
++- **Deciders:** @cpa-sim maintainers
++- **Area:** testing
++- **Related ecosystem ADRs:** ECO-0003
++- **Tags:** ci, testing, reproducibility
++- **Scope:** cpa-sim
++
++### Context
++`cpa-sim` contains both fast software-correctness checks and slower physics validation for free-space and fiber models. We need explicit marker policy so PR checks stay fast while preserving confidence in theoretical correctness.
++
++### Decision
++Adopt ECO-0003 marker-aligned validation tiers:
++
++- **Tier 0 (PR-gated):** fast deterministic unit/integration checks.
++  - Command: `python -m pytest -q -m "not slow and not physics" --durations=10`
++- **Tier 1 (nightly/manual):** canonical theoretical physics regressions.
++  - Command: `python -m pytest -q -m "physics" --durations=10`
++- **Tier 2 (manual/report):** experimental comparisons with uncertainty accounting.
++
++Required markers: `unit`, `integration`, `physics`, `slow`.
++
++### Tolerance policy
++- Tier 0 uses strict deterministic tolerances.
++- Tier 1 stores metric-specific tolerances near fixture baselines.
++- Tier 2 must document uncertainty sources and comparison methodology.
++
++### Consequences
++- **Positive:** faster PR iteration with explicit deeper validation paths.
++- **Negative:** marker hygiene must be maintained to prevent slow-test leakage into PR gates.
++- **Implementation follow-up:** audit existing tests and add missing markers.
++
++### Validation
++- CI commands map to tier policy.
++- Periodic marker audit in PR review.
++- Determinism checks enforce stable seeded outputs.
++
++### References
++- `cpa-architecture/docs/adr/ECO-0003-validation-tiers-ci-policy.md`
+diff --git a/docs/adr/ADR-0004-stage-domain-boundaries.md b/docs/adr/ADR-0004-stage-domain-boundaries.md
+new file mode 100644
+index 0000000..2638336
+--- /dev/null
++++ b/docs/adr/ADR-0004-stage-domain-boundaries.md
+@@ -0,0 +1,42 @@
++**Title:** cpa-sim stage ownership and domain boundaries for laser, free-space, fiber, and amp.
++
++- **ADR ID:** ADR-0004
++- **Status:** Proposed
++- **Date:** 2026-02-16
++- **Deciders:** @cpa-sim maintainers
++- **Area:** architecture
++- **Related ecosystem ADRs:** ECO-0004
++- **Tags:** ownership, staging, boundaries
++- **Scope:** cpa-sim
++
++### Context
++`cpa-sim` is the implementation owner for CPA-stage domain logic. To avoid cross-repo drift and unclear responsibilities, this repo must explicitly own laser specification handling plus stage implementations for free-space propagation, fiber propagation, and amplification while consuming shared pipeline contracts from upstream orchestration repos.
++
++### Decision
++Within the CPA ecosystem, `cpa-sim` owns:
++
++1. **Laser spec and initialization domain**
++   - Validation/normalization of input laser specs used to construct initial pulse state.
++   - Deterministic initialization (including seeded behaviors where applicable).
++2. **Free-space stage domain**
++   - Stretcher/compressor free-space models and their convention-sign validation.
++3. **Fiber stage domain**
++   - Fiber propagation stage integration (v1 via external solver wrappers, later via in-house backend).
++4. **Amp stage domain**
++   - Amplification stage configuration and gain-model implementations.
++
++`cpa-sim` must not redefine generic pipeline abstractions from `phys-pipeline`; it consumes them and provides domain stage implementations.
++
++### Consequences
++- **Positive:** clear domain authority for CPA physics implementation and ADR-driven change control.
++- **Negative:** broader ownership in one repo increases review burden for cross-stage changes.
++- **Implementation follow-up:** keep ADR references in stage module docs and update STATUS/roadmap when responsibilities evolve.
++
++### Validation
++- Stage-level tests exist for each governed domain: laser init, free-space, fiber, amp.
++- Integration tests cover end-to-end chain behavior and schema-compliant outputs.
++- Boundary reviews reject changes that attempt to shift domain logic to unrelated repos.
++
++### References
++- `cpa-architecture/docs/adr/ECO-0004-repository-roles-boundaries.md`
++- `cpa-architecture/docs/SYSTEM_OVERVIEW.md`
+diff --git a/docs/adr/INDEX.md b/docs/adr/INDEX.md
+index bb843b8..3d5485c 100644
+--- a/docs/adr/INDEX.md
++++ b/docs/adr/INDEX.md
+@@ -2,3 +2,7 @@
+ 
+ | ADR | Title | Status | Date | Area | Tags |
+ |---:|---|---|---|---|---|
++| ADR-0001 | cpa-sim conventions and units contract for CPA state and stage interfaces | Proposed | 2026-02-16 | simulation-core | api, data-model, physics, testing |
++| ADR-0002 | Canonical `result.json` schema contract for cpa-sim runs | Proposed | 2026-02-16 | io-contract | api, schema, provenance, testing |
++| ADR-0003 | Validation tiers and CI marker policy for cpa-sim | Proposed | 2026-02-16 | testing | ci, testing, reproducibility |
++| ADR-0004 | cpa-sim stage ownership and domain boundaries for laser, free-space, fiber, and amp | Proposed | 2026-02-16 | architecture | ownership, staging, boundaries |
