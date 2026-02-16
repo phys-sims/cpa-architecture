@@ -10,6 +10,17 @@ Two recurring problems were observed in patch ADRs:
 
 This guide standardizes a concise title format and a required "local instructions" section.
 
+## Default stance: keep local ADRs lean
+
+Most repo-local ADRs are **not** derived from ecosystem ADRs and should stay concise.
+
+For non-ECO ADRs, keep the doc short and focused on:
+- the local decision,
+- where it applies,
+- how to validate it.
+
+Do not add ecosystem-governance context unless it directly changes local implementation behavior.
+
 ## Required naming format
 
 For repo-local ADRs, use this format for both filename and top-level title:
@@ -30,7 +41,15 @@ Where:
 - Repo-prefixed IDs (`SIM-ADR-0001`, `TB-ADR-0003`, etc.)
 - Titles that begin with `Adopt ECO-...` without describing the local policy
 
-## What a local ECO-derived ADR must contain
+## ECO-derived ADRs are an edge-case addendum
+
+When (and only when) a repo ADR derives from an ecosystem ECO ADR, add a small, actionable addendum.
+
+The goal is to avoid two failure modes:
+1. Pointer ADRs that only say "ECO accepted".
+2. Verbose near-copies of ecosystem ADRs.
+
+## What an ECO-derived local ADR must contain
 
 A repo-local ADR that derives from an ecosystem ADR should be a **local operating contract**, not a copy of ecosystem governance text.
 
@@ -59,6 +78,14 @@ Required sections:
 7. **Migration notes (if adopted mid-stream)**
    - Incremental rollout and compatibility steps for existing code.
 
+### Keep ECO-derived ADRs compact
+
+To prevent verbosity, cap ECO-derived content to implementation-relevant deltas:
+- Use short bullets, not long narrative.
+- Summarize upstream clauses by reference (for example, "ECO-0001 §Convention contract #1-#3") instead of re-explaining rationale.
+- Add only repo-local mappings (paths, symbols, checks).
+- If a section has no repo-local adaptation, state "Adopted as-is" in one line.
+
 ## Content boundary vs ecosystem ADR
 
 When writing local ADRs from ECO ADRs:
@@ -67,38 +94,13 @@ When writing local ADRs from ECO ADRs:
 
 If the local repo needs alternatives analysis for a repo-specific design choice, write a separate local ADR for that choice.
 
-## Minimal template for deps ADRs
+## Template usage policy
 
-```md
-# ADR-XXXX-description
+Use the existing ADR templates in each dependency repo (`deps/<repo>/docs/adr/`).
 
-## Status
-Accepted | Proposed
-
-## Upstream references
-- ECO-000Y: <link>
-
-## Decision summary (local)
-<What this repo commits to doing>
-
-## Local instructions
-- <Rule 1 with file/module pointers>
-- <Rule 2 with file/module pointers>
-- <Validation requirement>
-
-## Applies to
-- <paths/modules>
-
-## Out of scope for this repo
-- <what from ECO is intentionally not restated here>
-
-## Acceptance checks
-- [ ] <check/command>
-- [ ] <check/command>
-
-## Migration notes
-- <optional rollout notes>
-```
+- Do **not** introduce a new global non-ECO template from this guide.
+- For ECO-derived ADRs, start from the repo-local template and add the ECO-derived sections listed above.
+- Keep the ECO-specific additions minimal and implementation-oriented.
 
 ## Review checklist for PR authors/reviewers
 
@@ -106,4 +108,5 @@ Accepted | Proposed
 - [ ] ADR contains actionable local instructions (not only "ECO accepted").
 - [ ] Scope and out-of-scope are explicit for this repo.
 - [ ] Validation checks are listed and repo-appropriate.
-- [ ] Upstream ECO links are present and accurate.
+- [ ] Upstream ECO links are present and accurate (ECO-derived ADRs only).
+- [ ] ADR remains compact and avoids duplicating ecosystem rationale.
