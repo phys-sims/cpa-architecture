@@ -58,3 +58,41 @@ def test_repo_ops_dry_run_reads_plan(tmp_path: Path) -> None:
 
     assert "Processing bundle bundle-test" in result.stdout
     assert "DRY RUN: would clone https://github.com/example-org/demo-repo.git" in result.stdout
+
+
+def test_assert_base_sha_mismatch_has_remediation(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    run(["git", "init"], cwd=repo_dir)
+    run(["git", "config", "user.name", "Test User"], cwd=repo_dir)
+    run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir)
+
+    tracked = repo_dir / "README.md"
+    tracked.write_text("initial\n", encoding="utf-8")
+    run(["git", "add", "README.md"], cwd=repo_dir)
+    run(["git", "commit", "-m", "initial commit"], cwd=repo_dir)
+
+    missing_sha = "f" * 40
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; "
+                "from tools.repo_ops import assert_base_sha; "
+                f"assert_base_sha(Path(r'{repo_dir}'), '{missing_sha}')"
+            ),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Base SHA mismatch detected." in result.stderr
+    assert "Repository: repo" in result.stderr
+    assert "Suggested next steps:" in result.stderr
+    assert "python tools/mkpatch.py" in result.stderr
+    assert "updated plan_path" in result.stderr

@@ -82,8 +82,62 @@ def assert_base_sha(repo_dir: Path, base_sha: str | None) -> None:
     if not base_sha:
         return
     head = run(["git", "rev-parse", "HEAD"], cwd=repo_dir)
-    if head != base_sha:
-        raise RuntimeError(f"Base SHA mismatch for {repo_dir.name}: expected {base_sha}, got {head}")
+    branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
+    expected_exists = (
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{base_sha}^{{commit}}"],
+            cwd=str(repo_dir),
+            text=True,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+    relationship = "expected SHA not found in local clone"
+    if expected_exists:
+        if head == base_sha:
+            return
+
+        expected_is_ancestor = (
+            subprocess.run(
+                ["git", "merge-base", "--is-ancestor", base_sha, "HEAD"],
+                cwd=str(repo_dir),
+                text=True,
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+        head_is_ancestor = (
+            subprocess.run(
+                ["git", "merge-base", "--is-ancestor", "HEAD", base_sha],
+                cwd=str(repo_dir),
+                text=True,
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+
+        if expected_is_ancestor:
+            relationship = "expected SHA is an ancestor of current HEAD"
+        elif head_is_ancestor:
+            relationship = "current HEAD is an ancestor of expected SHA"
+        else:
+            relationship = "expected SHA and current HEAD are on different branches"
+
+    raise RuntimeError(
+        "Base SHA mismatch detected.\n"
+        f"Repository: {repo_dir.name}\n"
+        f"Expected SHA: {base_sha}\n"
+        f"Current SHA: {head}\n"
+        f"Current branch: {branch}\n"
+        f"Merge-base relationship: {relationship}\n"
+        "Suggested next steps:\n"
+        "  1. Regenerate the bundle: python tools/mkpatch.py\n"
+        "  2. Rerun the workflow with an updated plan_path."
+    )
 
 
 def has_changes(repo_dir: Path) -> bool:
