@@ -1,0 +1,24 @@
+name: Patch bundle retention
+
+on:
+  pull_request:
+    paths:
+      - "patches/**"
+
+permissions:
+  contents: read
+
+jobs:
+  check-patch-retention:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Check patch bundle retention policy
+        run: python tools/check_patch_retention.py --max-bundles 3

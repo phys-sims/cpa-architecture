@@ -56,6 +56,18 @@ This writes `patches/<bundle>/` containing:
 - `change_report.md`
 - `change_plan.json` (repo, branch, commit message, patch path, base SHA)
 
+Bundle retention policy: keep only the newest 3 `patches/bundle-*` directories. CI enforces this on pull requests that touch `patches/`:
+
+```bash
+python tools/check_patch_retention.py --max-bundles 3
+```
+
+If the check fails, remove the stale bundle directories listed in the output and regenerate a bundle with pruning when needed:
+
+```bash
+python tools/mkpatch.py --prune-old --keep 3
+```
+
 3. Commit the bundle to `cpa-architecture`.
 4. Run GitHub Action **Repo Ops Publish** (`.github/workflows/repo-ops-publish.yml`) with:
    - `plan_path` = path to `change_plan.json`
