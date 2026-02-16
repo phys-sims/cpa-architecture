@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "repos.toml"
+MANIFEST = ROOT / "manifest" / "repos.toml"
 DEPS_DIR = ROOT / "deps"
 
 # Make git fail fast instead of hanging on interactive prompts
