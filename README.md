@@ -72,6 +72,7 @@ python tools/repo_ops.py --workspace-root . --plan patches/<bundle>/change_plan.
 ## What does not belong here
 
 - Repo-local ADRs that only matter to one codebase (put those in that repo’s docs).
+  - When a repo-local ADR adopts an ecosystem ADR, follow `docs/adr/deps-adr-authoring-guide.md` for naming and required local instructions.
 - Private implementation details, datasets, or internal-only testbench content.
 - Direct commits to `deps/` (generated workspace state).
 
