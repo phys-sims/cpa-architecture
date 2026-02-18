@@ -182,3 +182,22 @@ def test_assert_base_sha_mismatch_has_remediation(tmp_path: Path) -> None:
     assert "Suggested next steps:" in result.stderr
     assert "python tools/mkpatch.py" in result.stderr
     assert "updated plan_path" in result.stderr
+
+
+def test_with_github_token_encodes_special_characters() -> None:
+    from tools.repo_ops import with_github_token
+
+    url = with_github_token("https://github.com/example-org/demo-repo.git", "ghs_ab:c/+=?")
+
+    assert url == "https://x-access-token:ghs_ab%3Ac%2F%2B%3D%3F@github.com/example-org/demo-repo.git"
+
+
+def test_with_github_token_requires_https() -> None:
+    from tools.repo_ops import with_github_token
+
+    try:
+        with_github_token("git@github.com:example-org/demo-repo.git", "token")
+    except ValueError as exc:
+        assert "Only https:// URLs are supported" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for non-https URL")
