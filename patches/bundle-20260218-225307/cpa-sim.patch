@@ -1,0 +1,118 @@
+diff --git a/src/cpa_sim/metrics.py b/src/cpa_sim/metrics.py
+index 69a3c5f..76f60d2 100644
+--- a/src/cpa_sim/metrics.py
++++ b/src/cpa_sim/metrics.py
+@@ -1,8 +1,30 @@
+-# contains math for end-to-end metrics and analysis of per-stage metrics
+-# used for building objective functions to optimize for
+-# eg: pulse shape change (end to end), cost of components (per stage accumulation)
++from __future__ import annotations
+ 
++import numpy as np
+ 
+-def placeholder_metric(x: float, y: float) -> float:
+-    """Example metric—replace or remove."""
+-    return abs(x - y)
++
++def normalized_cross_correlation(reference: np.ndarray, candidate: np.ndarray) -> float:
++    """Return cosine similarity between two real-valued waveforms.
++
++    Values are clamped to [0, 1] so callers can use ``1 - similarity`` as a bounded
++    distortion metric.
++    """
++
++    ref = np.asarray(reference, dtype=float)
++    cur = np.asarray(candidate, dtype=float)
++    if ref.shape != cur.shape:
++        raise ValueError("reference and candidate must have the same shape")
++    ref_norm = float(np.linalg.norm(ref))
++    cur_norm = float(np.linalg.norm(cur))
++    if ref_norm <= 0.0 or cur_norm <= 0.0:
++        return 0.0
++    score = float(np.dot(ref.ravel(), cur.ravel()) / (ref_norm * cur_norm))
++    return float(np.clip(score, 0.0, 1.0))
++
++
++def amplification_ratio(energy_out: float, energy_in: float) -> float:
++    """Compute output/input energy ratio with safe handling for degenerate inputs."""
++
++    if energy_in <= 0.0:
++        return 0.0
++    return float(energy_out / energy_in)
+diff --git a/src/cpa_sim/stages/laser_gen/analytic.py b/src/cpa_sim/stages/laser_gen/analytic.py
+index 12fd4e5..b616ce7 100644
+--- a/src/cpa_sim/stages/laser_gen/analytic.py
++++ b/src/cpa_sim/stages/laser_gen/analytic.py
+@@ -51,6 +51,13 @@ class AnalyticLaserGenStage(LaserStage[LaserGenCfg]):
+             spectrum_w=spectrum,
+         )
+         out.beam = BeamState(radius_mm=spec.beam.radius_mm, m2=spec.beam.m2)
++        out.meta.setdefault("reference", {})
++        out.meta["reference"].update(
++            {
++                "intensity_t": intensity.tolist(),
++                "spectrum_w": spectrum.tolist(),
++            }
++        )
+         stage_metrics = {
+             "laser.energy_au": float(np.sum(intensity) * dt),
+             "laser.peak_intensity_au": float(np.max(intensity)),
+diff --git a/src/cpa_sim/stages/metrics/standard.py b/src/cpa_sim/stages/metrics/standard.py
+index b3e0c8d..88523c9 100644
+--- a/src/cpa_sim/stages/metrics/standard.py
++++ b/src/cpa_sim/stages/metrics/standard.py
+@@ -2,6 +2,7 @@ from __future__ import annotations
+ 
+ import numpy as np
+ 
++from cpa_sim.metrics import amplification_ratio, normalized_cross_correlation
+ from cpa_sim.models.config import MetricsCfg
+ from cpa_sim.models.state import LaserState
+ from cpa_sim.phys_pipeline_compat import PolicyBag, StageResult
+@@ -29,11 +30,32 @@ class StandardMetricsStage(LaserStage[MetricsCfg]):
+         fwhm = float(t[above[-1]] - t[above[0]]) if above.size > 1 else 0.0
+         bandwidth = float(np.sqrt(np.average((np.asarray(out.pulse.grid.w) ** 2), weights=spec)))
+ 
++        laser_energy = float(out.metrics.get("laser.energy_au", 0.0))
++        amp_ratio = amplification_ratio(energy_out=energy, energy_in=laser_energy)
++
++        reference = out.meta.get("reference", {})
++        reference_intensity = np.asarray(reference.get("intensity_t", []), dtype=float)
++        reference_spectrum = np.asarray(reference.get("spectrum_w", []), dtype=float)
++
++        temporal_similarity = (
++            normalized_cross_correlation(reference_intensity, intensity)
++            if reference_intensity.shape == intensity.shape
++            else 0.0
++        )
++        spectral_similarity = (
++            normalized_cross_correlation(reference_spectrum, spec)
++            if reference_spectrum.shape == spec.shape
++            else 0.0
++        )
++
+         stage_metrics = {
+             "summary.energy_au": energy,
+             "summary.peak_intensity_au": peak,
+             "summary.fwhm_fs": fwhm,
+             "summary.bandwidth_rad_per_fs": bandwidth,
++            "summary.amplification_ratio": amp_ratio,
++            "summary.temporal_shape_similarity": temporal_similarity,
++            "summary.spectral_shape_similarity": spectral_similarity,
+         }
+         out.metrics.update(stage_metrics)
+         out.artifacts.update(maybe_emit_stage_plots(stage_name=self.name, state=out, policy=policy))
+diff --git a/tests/integration/test_tiny_chain.py b/tests/integration/test_tiny_chain.py
+index 306acf8..c251ea5 100644
+--- a/tests/integration/test_tiny_chain.py
++++ b/tests/integration/test_tiny_chain.py
+@@ -15,6 +15,9 @@ def test_tiny_chain_runs_and_emits_finite_metrics() -> None:
+         "cpa.metrics.summary.peak_intensity_au",
+         "cpa.metrics.summary.fwhm_fs",
+         "cpa.metrics.summary.bandwidth_rad_per_fs",
++        "cpa.metrics.summary.amplification_ratio",
++        "cpa.metrics.summary.temporal_shape_similarity",
++        "cpa.metrics.summary.spectral_shape_similarity",
+     ]:
+         assert key in result.metrics
+         assert result.metrics[key] == pytest.approx(result.metrics[key])
