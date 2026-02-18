@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 
 @dataclass(frozen=True)
@@ -62,18 +63,24 @@ def load_plan(plan_path: Path) -> Plan:
     return Plan(schema_version=schema_version, bundle=bundle, changes=changes)
 
 
+def with_github_token(repo_url: str, token: str) -> str:
+    if not repo_url.startswith("https://"):
+        raise ValueError(f"Only https:// URLs are supported for authenticated clone: {repo_url}")
+
+    encoded_token = quote(token, safe="")
+    return repo_url.replace("https://", f"https://x-access-token:{encoded_token}@", 1)
+
+
 def clone_repo(work_dir: Path, repo_url: str, branch: str, token: str) -> Path:
     repo_name = repo_url.rstrip("/").split("/")[-1].replace(".git", "")
     dest = work_dir / repo_name
     if dest.exists():
         shutil.rmtree(dest)
 
-    run(["git", "clone", repo_url, str(dest)])
+    auth_repo_url = with_github_token(repo_url, token)
+    run(["git", "clone", auth_repo_url, str(dest)])
     run(["git", "checkout", "-B", branch], cwd=dest)
-    run(
-        ["git", "remote", "set-url", "origin", repo_url.replace("https://", f"https://x-access-token:{token}@")],
-        cwd=dest,
-    )
+    run(["git", "remote", "set-url", "origin", auth_repo_url], cwd=dest)
     return dest
 
 
