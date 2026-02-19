@@ -187,7 +187,28 @@ def has_changes(repo_dir: Path) -> bool:
 def commit_and_push(repo_dir: Path, commit_message: str, branch: str) -> None:
     run(["git", "add", "-A"], cwd=repo_dir)
     run(["git", "commit", "-m", commit_message], cwd=repo_dir)
-    run(["git", "push", "-u", "origin", branch, "--force-with-lease"], cwd=repo_dir)
+
+    initial_push = subprocess.run(
+        ["git", "push", "-u", "origin", branch],
+        cwd=str(repo_dir),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if initial_push.returncode == 0:
+        return
+
+    stderr = initial_push.stderr.lower()
+    if "non-fast-forward" in stderr or "fetch first" in stderr:
+        run(["git", "push", "-u", "origin", branch, "--force-with-lease"], cwd=repo_dir)
+        return
+
+    raise subprocess.CalledProcessError(
+        initial_push.returncode,
+        initial_push.args,
+        output=initial_push.stdout,
+        stderr=initial_push.stderr,
+    )
 
 
 def open_pr(repo_dir: Path, branch: str, base_branch: str, title: str, body: str) -> str:
