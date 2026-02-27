@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "bundle": "bundle-20260227-195209",
+  "changes": [
+    {
+      "repo": "abcdef-sim",
+      "branch": "codex/bundle-20260227-195209/abcdef-sim",
+      "commit_message": "Apply bundle-20260227-195209 updates for abcdef-sim",
+      "patch_path": "patches/bundle-20260227-195209/abcdef-sim.patch",
+      "base_sha": "e9ae0d34d17e8482b921a57696a776b834eb3132"
+    }
+  ]
+}
