@@ -201,3 +201,56 @@ def test_with_github_token_requires_https() -> None:
         assert "Only https:// URLs are supported" in str(exc)
     else:
         raise AssertionError("Expected ValueError for non-https URL")
+
+
+def test_resolve_plan_path_repairs_patch_file_suffix(tmp_path: Path) -> None:
+    from tools.repo_ops import resolve_plan_path
+
+    workspace = tmp_path
+    bundle_dir = workspace / "patches" / "bundle-test"
+    bundle_dir.mkdir(parents=True)
+    expected_plan = bundle_dir / "change_plan.json"
+    expected_plan.write_text("{}", encoding="utf-8")
+
+    malformed = Path("patches/bundle-test/demo.patch/change_plan.json")
+
+    resolved = resolve_plan_path(malformed, workspace)
+
+    assert resolved == expected_plan
+
+
+def test_resolve_plan_path_accepts_bundle_directory(tmp_path: Path) -> None:
+    from tools.repo_ops import resolve_plan_path
+
+    workspace = tmp_path
+    bundle_dir = workspace / "patches" / "bundle-test"
+    bundle_dir.mkdir(parents=True)
+
+    resolved = resolve_plan_path(Path("patches/bundle-test"), workspace)
+
+    assert resolved == bundle_dir / "change_plan.json"
+
+
+def test_repo_ops_reports_resolved_plan_path_when_missing(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--workspace-root",
+            str(tmp_path),
+            "--plan",
+            "patches/bundle-test/demo.patch/change_plan.json",
+            "--org",
+            "example-org",
+            "--dry-run",
+        ],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Plan file not found." in result.stderr
+    assert "Provided: patches/bundle-test/demo.patch/change_plan.json" in result.stderr
+    assert "Resolved:" in result.stderr

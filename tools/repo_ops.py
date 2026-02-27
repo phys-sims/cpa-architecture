@@ -63,6 +63,27 @@ def load_plan(plan_path: Path) -> Plan:
     return Plan(schema_version=schema_version, bundle=bundle, changes=changes)
 
 
+def resolve_plan_path(plan_path: Path, workspace_root: Path) -> Path:
+    """Resolve and sanitize a plan path passed via CLI/workflow inputs.
+
+    Supports:
+    - direct path to change_plan.json
+    - bundle directory path (auto-appends change_plan.json)
+    - accidental '<...>.patch/change_plan.json' input by repairing to sibling change_plan.json
+    """
+
+    candidate = plan_path if plan_path.is_absolute() else workspace_root / plan_path
+
+    if candidate.is_dir():
+        candidate = candidate / "change_plan.json"
+
+    parts = candidate.parts
+    if len(parts) >= 2 and parts[-1] == "change_plan.json" and parts[-2].endswith(".patch"):
+        candidate = candidate.parent.parent / "change_plan.json"
+
+    return candidate
+
+
 def with_github_token(repo_url: str, token: str) -> str:
     if not repo_url.startswith("https://"):
         raise ValueError(f"Only https:// URLs are supported for authenticated clone: {repo_url}")
@@ -244,8 +265,16 @@ def main() -> int:
     if not token and not args.dry_run:
         raise RuntimeError("GH_TOKEN or GITHUB_TOKEN is required unless --dry-run is used")
 
-    plan = load_plan(args.plan)
     patch_root = args.workspace_root
+    plan_path = resolve_plan_path(args.plan, args.workspace_root)
+    if not plan_path.exists():
+        raise FileNotFoundError(
+            "Plan file not found. "
+            f"Provided: {args.plan} | Resolved: {plan_path}. "
+            "Expected a path to change_plan.json (or bundle directory containing it)."
+        )
+
+    plan = load_plan(plan_path)
 
     work_dir = args.work_dir
     work_dir.mkdir(parents=True, exist_ok=True)
